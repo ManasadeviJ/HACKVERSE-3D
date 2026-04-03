@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 230 60% 7%;
+    --foreground: 220 40% 98%;
+    --card: 230 55% 10%;
+    --card-foreground: 220 40% 98%;
+    --popover: 230 55% 10%;
+    --popover-foreground: 220 40% 98%;
+    --primary: 183 100% 50%;
+    --primary-foreground: 230 60% 7%;
+    --secondary: 230 40% 15%;
+    --secondary-foreground: 220 40% 98%;
+    --muted: 230 30% 18%;
+    --muted-foreground: 225 20% 70%;
+    --accent: 183 100% 50%;
+    --accent-foreground: 230 60% 7%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 183 100% 50%;
+    --input: 230 30% 18%;
+    --ring: 183 100% 50%;
+    --radius: 0.625rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+    background-color: #070A1F;
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.05;
+  }
+}
+
+@layer components {
+  .font-mono-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  
+  .neon-glow {
+    text-shadow: 0 0 18px rgba(0, 240, 255, 0.35), 0 0 40px rgba(0, 240, 255, 0.18);
+  }
+  
+  .neon-border {
+    border: 1px solid rgba(0, 240, 255, 0.35);
+  }
+  
+  .neon-box-glow {
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.18);
+  }
+  
+  .grid-overlay {
+    background-image: 
+      linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+  
+  .cyber-card {
+    @apply rounded-[10px] neon-border bg-[#0B0F2E]/80 backdrop-blur-sm;
+  }
+  
+  .cyber-button {
+    @apply relative px-8 py-3 bg-transparent border border-[#00F0FF]/50 text-[#00F0FF] font-medium 
+           transition-all duration-300 hover:bg-[#00F0FF]/10 hover:shadow-[0_0_20px_rgba(0,240,255,0.3)]
+           uppercase tracking-wider text-sm;
+  }
+  
+  .cyber-button-primary {
+    @apply relative px-8 py-3 bg-[#00F0FF] text-[#070A1F] font-semibold 
+           transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,240,255,0.5)]
+           uppercase tracking-wider text-sm;
+  }
+  
+  .cyber-input {
+    @apply w-full px-4 py-3 bg-[#0B0F2E] border border-[#00F0FF]/30 rounded-lg 
+           text-white placeholder:text-[#A7B1D8]/50 focus:outline-none focus:border-[#00F0FF]
+           transition-all duration-300;
+  }
+  
+  .section-pinned {
+    @apply relative w-screen h-screen overflow-hidden;
+  }
+  
+  .text-gradient {
+    background: linear-gradient(135deg, #00F0FF 0%, #00A8B5 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+@layer utilities {
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
+  
+  .animate-scan-line {
+    animation: scan-line 4s linear infinite;
+  }
+  
+  .animate-marching-ants {
+    animation: marching-ants 1s linear infinite;
+  }
+  
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+  
+  @keyframes scan-line {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
+  }
+  
+  @keyframes marching-ants {
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -20; }
+  }
+  
+  .perspective-grid {
+    transform: perspective(500px) rotateX(60deg);
+    transform-origin: center top;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070A1F;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.5);
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(0, 240, 255, 0.3);
+  color: #F7FAFF;
+}
