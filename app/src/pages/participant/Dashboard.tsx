@@ -67,7 +67,7 @@ export default function ParticipantDashboard() {
           )}
           <div>
             <h1 className="text-3xl font-heading font-bold text-white">
-              Hey, {profile?.name?.split(' ')[0]}! 👋
+              Hey, {profile?.name?.split(' ')[0]}!
             </h1>
             <p className="text-cyber-gray">Ready to build something amazing?</p>
           </div>
@@ -137,11 +137,10 @@ export default function ParticipantDashboard() {
                           <p className="text-cyber-gray text-xs">{new Date(ev.startDate).toLocaleDateString()} → {new Date(ev.endDate).toLocaleDateString()}</p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className={`px-2 py-0.5 rounded text-xs ${
-                            status === 'ongoing' ? 'bg-green-500/20 text-green-400'
-                            : status === 'upcoming' ? 'bg-cyber-cyan/20 text-cyber-cyan'
-                            : 'bg-gray-500/20 text-gray-400'
-                          }`}>{status}</span>
+                          <span className={`px-2 py-0.5 rounded text-xs ${status === 'ongoing' ? 'bg-green-500/20 text-green-400'
+                              : status === 'upcoming' ? 'bg-cyber-cyan/20 text-cyber-cyan'
+                                : 'bg-gray-500/20 text-gray-400'
+                            }`}>{status}</span>
                           <ChevronRight className="w-4 h-4 text-cyber-gray" />
                         </div>
                       </Link>

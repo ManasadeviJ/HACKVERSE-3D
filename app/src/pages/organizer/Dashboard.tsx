@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Users, Trophy, Plus, ChevronRight, CheckCircle, Loader2 } from 'lucide-react';
+import {
+  Calendar, Users, Trophy, Plus, ChevronRight,
+  CheckCircle, Loader2, Shield
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { listOrganizerEvents, publishEvent, getEventBannerUrl } from '../../services/eventService';
+import { listOrganizerEvents, publishEvent, getEventBannerUrl, parseJudgeIds } from '../../services/eventService';
 import { getEventRegistrations } from '../../services/registrationService';
 import { getEventSubmissions } from '../../services/submissionService';
 import type { FullEvent } from '../../types';
@@ -47,9 +50,7 @@ export default function OrganizerDashboard() {
   const handlePublish = async (eventId: string) => {
     setPublishing(eventId);
     await publishEvent(eventId);
-    setEvents((prev) =>
-      prev.map((ev) => ev.$id === eventId ? { ...ev, status: 'published' } : ev)
-    );
+    setEvents((prev) => prev.map((ev) => ev.$id === eventId ? { ...ev, status: 'published' } : ev));
     setPublishing(null);
   };
 
@@ -68,15 +69,20 @@ export default function OrganizerDashboard() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-heading font-bold text-white mb-1">
-              Organizer Dashboard
-            </h1>
+            <h1 className="text-3xl sm:text-4xl font-heading font-bold text-white mb-1">Organizer Dashboard</h1>
             <p className="text-cyber-gray">Manage your hackathon events</p>
           </div>
-          <Link to="/organizer/create-event"
-            className="mt-4 sm:mt-0 cyber-button-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" />Create Event
-          </Link>
+          <div className="flex gap-3 mt-4 sm:mt-0">
+            {/* ── NEW: Manage Judges shortcut ── */}
+            <Link to="/organizer/manage-judges"
+              className="cyber-button flex items-center gap-2">
+              <Shield className="w-4 h-4 text-cyber-cyan" />Manage Judges
+            </Link>
+            <Link to="/organizer/create-event"
+              className="cyber-button-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" />Create Event
+            </Link>
+          </div>
         </div>
 
         {/* Stats */}
@@ -110,15 +116,14 @@ export default function OrganizerDashboard() {
             <h2 className="text-xl font-heading font-semibold text-white">Your Events</h2>
             {events.map((ev) => {
               const banner = ev.bannerFileId ? getEventBannerUrl(ev.bannerFileId) : null;
+              const nJudges = parseJudgeIds(ev.judgeIds).length;
               return (
                 <div key={ev.$id} className="cyber-card overflow-hidden">
                   <div className="flex flex-col sm:flex-row">
                     {banner && (
                       <div className="sm:w-40 h-28 sm:h-auto flex-shrink-0 overflow-hidden bg-cyber-darker">
-                        <img src={banner} alt={ev.title}
-                          className="w-full h-full object-cover"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
+                        <img src={banner} alt={ev.title} className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       </div>
                     )}
                     <div className="flex-1 p-5">
@@ -129,6 +134,12 @@ export default function OrganizerDashboard() {
                               {ev.status}
                             </span>
                             <span className="text-cyber-gray text-xs">{ev.category}</span>
+                            {/* Judge count badge */}
+                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs ${nJudges > 0 ? 'bg-purple-500/20 text-purple-300' : 'bg-yellow-500/10 text-yellow-600'
+                              }`}>
+                              <Shield className="w-3 h-3" />
+                              {nJudges > 0 ? `${nJudges} judge${nJudges !== 1 ? 's' : ''}` : 'No judges'}
+                            </span>
                           </div>
                           <h3 className="text-lg font-heading font-semibold text-white truncate">{ev.title}</h3>
                           <p className="text-cyber-gray text-sm line-clamp-1">{ev.shortDescription}</p>
@@ -136,54 +147,45 @@ export default function OrganizerDashboard() {
 
                         <div className="flex flex-wrap gap-2 flex-shrink-0">
                           {ev.status === 'draft' && (
-                            <button
-                              onClick={() => handlePublish(ev.$id)}
+                            <button onClick={() => handlePublish(ev.$id)}
                               disabled={publishing === ev.$id}
                               className="cyber-button-primary text-sm px-3 py-2 flex items-center gap-1 disabled:opacity-50">
-                              {publishing === ev.$id
-                                ? <Loader2 className="w-3 h-3 animate-spin" />
-                                : null}
+                              {publishing === ev.$id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                               Publish
                             </button>
                           )}
+                          {/* ── Manage Judges per-event link ── */}
+                          <Link to="/organizer/manage-judges"
+                            state={{ eventId: ev.$id }}
+                            className="cyber-button text-sm px-3 py-2 flex items-center gap-1">
+                            <Shield className="w-3 h-3" />Judges
+                          </Link>
                           <Link to={`/organizer/manage-teams?event=${ev.$id}`}
                             className="cyber-button text-sm px-3 py-2 flex items-center gap-1">
                             Teams <ChevronRight className="w-3 h-3" />
                           </Link>
                           <Link to="/organizer/results"
-                            className="cyber-button text-sm px-3 py-2">
-                            Results
-                          </Link>
-                          <Link to="/organizer/announcements"
-                            className="cyber-button text-sm px-3 py-2">
-                            Announce
-                          </Link>
+                            className="cyber-button text-sm px-3 py-2">Results</Link>
                         </div>
                       </div>
 
+                      {/* Stats row */}
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4 pt-4 border-t border-cyber-cyan/10 text-sm">
-                        <div>
-                          <p className="text-cyber-gray text-xs">Reg. Deadline</p>
-                          <p className="text-white">{new Date(ev.registrationDeadline).toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-cyber-gray text-xs">Start</p>
-                          <p className="text-white">{new Date(ev.startDate).toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-cyber-gray text-xs">End</p>
-                          <p className="text-white">{new Date(ev.endDate).toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-cyber-gray text-xs">Participants</p>
-                          <p className="text-cyber-cyan font-semibold">{ev.participantCount}</p>
-                        </div>
-                        <div>
-                          <p className="text-cyber-gray text-xs">Results</p>
-                          <p className={`font-semibold ${ev.resultsPublished ? 'text-green-400' : 'text-gray-400'}`}>
-                            {ev.resultsPublished ? 'Published' : 'Pending'}
-                          </p>
-                        </div>
+                        {[
+                          { label: 'Reg. Deadline', value: new Date(ev.registrationDeadline).toLocaleDateString() },
+                          { label: 'Start', value: new Date(ev.startDate).toLocaleDateString() },
+                          { label: 'End', value: new Date(ev.endDate).toLocaleDateString() },
+                          { label: 'Participants', value: ev.participantCount, cls: 'text-cyber-cyan font-semibold' },
+                          {
+                            label: 'Results', value: ev.resultsPublished ? 'Published' : 'Pending',
+                            cls: ev.resultsPublished ? 'text-green-400 font-semibold' : 'text-gray-400'
+                          },
+                        ].map(({ label, value, cls }) => (
+                          <div key={label}>
+                            <p className="text-cyber-gray text-xs">{label}</p>
+                            <p className={cls || 'text-white'}>{value}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>

@@ -1,29 +1,33 @@
-import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Suspense, useEffect } from 'react';
+import {
+  BrowserRouter as Router,
+  Routes, Route, Navigate,
+  useLocation
+} from 'react-router-dom';
 import './App.css';
 
-// Context
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Layouts
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 
-// Auth Pages
+// Auth
 import SignIn from './pages/auth/SignIn';
 import SignUp from './pages/auth/SignUp';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import OAuthCallback from './pages/auth/OAuthCallback';
 import ResetPassword from './pages/auth/ResetPassword';
 
-// Public Pages
+// Public
 import LandingPage from './pages/LandingPage';
 import Events from './pages/Events';
 import EventDetail from './pages/EventDetail';
 import RegistrationForm from './pages/RegistrationForm';
 import PostInvite from './pages/PostInvite';
+import Help from './pages/Help';
 
-// Participant Pages
+// Participant
 import ParticipantDashboard from './pages/participant/Dashboard';
 import MyEvents from './pages/participant/MyEvents';
 import MyTeam from './pages/participant/MyTeam';
@@ -31,40 +35,45 @@ import Collaboration from './pages/participant/Collaboration';
 import Submission from './pages/participant/Submission';
 import Leaderboard from './pages/participant/Leaderboard';
 
-// Judge Pages
+// Judge
 import JudgeDashboard from './pages/judge/Dashboard';
 import Evaluation from './pages/judge/Evaluation';
 
-// Organizer Pages
+// Organizer
 import OrganizerDashboard from './pages/organizer/Dashboard';
 import CreateEvent from './pages/organizer/CreateEvent';
 import ManageTeams from './pages/organizer/ManageTeams';
+import ManageJudges from './pages/organizer/ManageJudges'; // ✅ merged
 import ResultsManagement from './pages/organizer/ResultsManagement';
 import Announcements from './pages/organizer/Announcements';
 
-// 3D Town
+// Other
 import Town3D from './pages/Town3D';
-
-// Support Pages
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
-import Help from './pages/Help';
 
 import type { UserRole } from './types';
 
-// ─── Loading Spinner ─────────────────────────────────────────────────────────
-function FullPageLoader() {
+// Loader
+function FullPageLoader({ label = 'LOADING…' }: { label?: string }) {
   return (
     <div className="min-h-screen bg-cyber-dark flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyber-cyan" />
-        <p className="text-cyber-gray text-sm font-mono">LOADING HACKVERSE...</p>
+        <p className="text-cyber-gray text-sm font-mono">{label}</p>
       </div>
     </div>
   );
 }
 
-// ─── Protected Route ─────────────────────────────────────────────────────────
+// Scroll fix
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+}
+
+// Protected route
 function ProtectedRoute({
   children,
   allowedRoles,
@@ -74,7 +83,7 @@ function ProtectedRoute({
 }) {
   const { isLoading, isAuthenticated, profile } = useAuth();
 
-  if (isLoading) return <FullPageLoader />;
+  if (isLoading) return <FullPageLoader label="LOADING HACKVERSE…" />;
   if (!isAuthenticated) return <Navigate to="/auth/signin" replace />;
   if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
     return <Navigate to="/dashboard" replace />;
@@ -82,38 +91,33 @@ function ProtectedRoute({
   return <>{children}</>;
 }
 
-// ─── Role-based dashboard redirect ───────────────────────────────────────────
+// Role redirect
 function DashboardRedirect() {
   const { profile, isLoading, isAuthenticated } = useAuth();
+
   if (isLoading) return <FullPageLoader />;
   if (!isAuthenticated) return <Navigate to="/auth/signin" replace />;
+
   switch (profile?.role) {
     case 'participant': return <Navigate to="/town" replace />;
-    case 'judge':       return <Navigate to="/judge/dashboard" replace />;
-    case 'organizer':   return <Navigate to="/organizer/dashboard" replace />;
-    default:            return <Navigate to="/" replace />;
+    case 'judge': return <Navigate to="/judge/dashboard" replace />;
+    case 'organizer': return <Navigate to="/organizer/dashboard" replace />;
+    default: return <Navigate to="/" replace />;
   }
 }
 
-// ─── Post-event state: after event ends redirect participant to 3D town ───────
-function PostEventRedirect() {
-  const { profile } = useAuth();
-  const navigate = useNavigate();
-  useEffect(() => {
-    if (profile?.role === 'participant') navigate('/town', { replace: true });
-  }, [profile, navigate]);
-  return null;
-}
-
-// ─── Inner app (needs AuthProvider context) ──────────────────────────────────
+// Routes
 function AppRoutes() {
-  const { profile, isLoading } = useAuth();
-  if (isLoading) return <FullPageLoader />;
+  const location = useLocation();
 
   return (
-    <Router>
-      <Routes>
-        {/* Public Routes */}
+    <>
+      <ScrollToTop />
+
+      {/* ✅ IMPORTANT: prevents blank page after logout */}
+      <Routes key={location.key}>
+
+        {/* Public */}
         <Route path="/" element={<MainLayout />}>
           <Route index element={<LandingPage />} />
           <Route path="events" element={<Events />} />
@@ -122,7 +126,7 @@ function AppRoutes() {
           <Route path="help" element={<Help />} />
         </Route>
 
-        {/* Auth Routes */}
+        {/* Auth */}
         <Route path="/auth" element={<AuthLayout />}>
           <Route path="signin" element={<SignIn />} />
           <Route path="signup" element={<SignUp />} />
@@ -132,8 +136,7 @@ function AppRoutes() {
         </Route>
 
         {/* Registration */}
-        <Route
-          path="/register/:eventId"
+        <Route path="/register/:eventId"
           element={
             <ProtectedRoute allowedRoles={['participant']}>
               <RegistrationForm />
@@ -141,12 +144,11 @@ function AppRoutes() {
           }
         />
 
-        {/* Invite - anyone with link can view, must be participant to join */}
+        {/* Invite */}
         <Route path="/invite/:code?" element={<PostInvite />} />
 
-        {/* 3D Town - direct entry after event state, participant only */}
-        <Route
-          path="/town"
+        {/* Town */}
+        <Route path="/town"
           element={
             <ProtectedRoute allowedRoles={['participant']}>
               <Town3D />
@@ -154,9 +156,8 @@ function AppRoutes() {
           }
         />
 
-        {/* Participant Routes */}
-        <Route
-          path="/participant"
+        {/* Participant */}
+        <Route path="/participant"
           element={
             <ProtectedRoute allowedRoles={['participant']}>
               <MainLayout />
@@ -170,9 +171,8 @@ function AppRoutes() {
           <Route path="submission" element={<Submission />} />
         </Route>
 
-        {/* Judge Routes */}
-        <Route
-          path="/judge"
+        {/* Judge */}
+        <Route path="/judge"
           element={
             <ProtectedRoute allowedRoles={['judge']}>
               <MainLayout />
@@ -183,9 +183,8 @@ function AppRoutes() {
           <Route path="evaluation/:submissionId?" element={<Evaluation />} />
         </Route>
 
-        {/* Organizer Routes */}
-        <Route
-          path="/organizer"
+        {/* Organizer */}
+        <Route path="/organizer"
           element={
             <ProtectedRoute allowedRoles={['organizer']}>
               <MainLayout />
@@ -195,13 +194,13 @@ function AppRoutes() {
           <Route path="dashboard" element={<OrganizerDashboard />} />
           <Route path="create-event" element={<CreateEvent />} />
           <Route path="manage-teams" element={<ManageTeams />} />
+          <Route path="manage-judges" element={<ManageJudges />} /> {/* ✅ merged */}
           <Route path="results" element={<ResultsManagement />} />
           <Route path="announcements" element={<Announcements />} />
         </Route>
 
-        {/* Common Protected Routes */}
-        <Route
-          path="/"
+        {/* Common */}
+        <Route path="/"
           element={
             <ProtectedRoute>
               <MainLayout />
@@ -212,20 +211,25 @@ function AppRoutes() {
           <Route path="notifications" element={<Notifications />} />
         </Route>
 
-        {/* Dashboard redirect (role-based) */}
+        {/* Redirect */}
         <Route path="/dashboard" element={<DashboardRedirect />} />
 
-        {/* Catch all */}
+        {/* Catch */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Router>
+    </>
   );
 }
 
+// App root
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <Router>
+        <Suspense fallback={<FullPageLoader />}>
+          <AppRoutes />
+        </Suspense>
+      </Router>
     </AuthProvider>
   );
 }

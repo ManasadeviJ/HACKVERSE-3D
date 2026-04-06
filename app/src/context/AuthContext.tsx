@@ -1,4 +1,7 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import {
+  createContext, useContext, useEffect, useState,
+  useCallback, useRef, type ReactNode
+} from 'react';
 import {
   getAccountOrNull,
   signIn as authSignIn,
@@ -17,37 +20,32 @@ import {
 } from '../services/authService';
 import type { Profile, UserRole } from '../types';
 import { subscribeToNotifications } from '../services/notificationService';
-import { setAvailability } from '../services/chatService';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface AuthContextValue {
   profile: Profile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  // Auth actions
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithGithub: () => Promise<void>;
+  signInWithGoogle: () => void;
+  signInWithGithub: () => void;
   completeOAuth: (role?: UserRole) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (userId: string, secret: string, password: string) => Promise<void>;
   changePassword: (oldPwd: string, newPwd: string) => Promise<void>;
   verifyEmail: () => Promise<void>;
-  // Profile actions
   updateProfile: (data: Partial<Profile>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
   getAvatarUrl: (fileId: string) => string;
-  // Computed helpers
+  refreshProfile: () => Promise<void>;
   isParticipant: boolean;
   isJudge: boolean;
   isOrganizer: boolean;
   unreadCount: number;
-  setUnreadCount: (n: number) => void;
+  setUnreadCount: React.Dispatch<React.SetStateAction<number>>;
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -55,59 +53,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // ── Boot: restore session ──────────────────────────────────────────────────
+  // Store unsub function in a plain ref (not typed as a hook return)
+  const unsubNotifRef = useRef<null | (() => void)>(null);
+
+  // ── Safe cleanup helper ───────────────────────────────────────────────────
+  const cleanupNotifSub = () => {
+    if (unsubNotifRef.current && typeof unsubNotifRef.current === 'function') {
+      try { unsubNotifRef.current(); } catch { /* ignore */ }
+      unsubNotifRef.current = null;
+    }
+  };
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     getAccountOrNull()
-      .then((p) => {
-        setProfile(p);
-      })
+      .then((p) => setProfile(p))
       .catch(() => setProfile(null))
       .finally(() => setIsLoading(false));
   }, []);
 
-  // ── Real-time notification badge ──────────────────────────────────────────
+  // ── Realtime notification badge ───────────────────────────────────────────
   useEffect(() => {
-    if (!profile) return;
-    // Initial unread count loaded by Notifications page; here we just listen for new ones
-    const unsub = subscribeToNotifications(profile.$id, () => {
-      setUnreadCount((c) => c + 1);
-    });
-    return unsub;
+    cleanupNotifSub();
+    if (!profile?.$id) return;
+
+    try {
+      const unsub = subscribeToNotifications(profile.$id, () => {
+        setUnreadCount((c) => c + 1);
+      });
+      // Verify it's actually a function before storing
+      if (typeof unsub === 'function') {
+        unsubNotifRef.current = unsub;
+      }
+    } catch { /* subscription optional */ }
+
+    return () => cleanupNotifSub();
   }, [profile?.$id]);
 
-  // ── Auto online/offline presence ─────────────────────────────────────────
-  useEffect(() => {
-    if (!profile) return;
-    // Mark online on focus, offline on blur/unload
-    const onFocus = () => {
-      // presence is per-team; handled in chat pages
-    };
-    const onBlur = () => {
-      // handled in chat pages
-    };
-    window.addEventListener('focus', onFocus);
-    window.addEventListener('blur', onBlur);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      window.removeEventListener('blur', onBlur);
-    };
-  }, [profile]);
-
-  // ─── Auth actions ─────────────────────────────────────────────────────────
+  // ── Auth actions ──────────────────────────────────────────────────────────
   const signIn = useCallback(async (email: string, password: string) => {
     const p = await authSignIn(email, password);
     setProfile(p);
   }, []);
 
-  const signUp = useCallback(async (name: string, email: string, password: string, role: UserRole) => {
+  const signUp = useCallback(async (
+    name: string, email: string, password: string, role: UserRole
+  ) => {
     const p = await authSignUp(name, email, password, role);
     setProfile(p);
   }, []);
 
+  /**
+   * FIX: signOut crash "notifUnsubRef.current is not a function"
+   * The Appwrite realtime.subscribe() return value is not always a plain function.
+   * We guard with typeof check in cleanupNotifSub(). After cleanup, clear state
+   * and navigate to landing page via window.location (avoids stale React router state).
+   */
   const signOut = useCallback(async () => {
-    await authSignOut();
+    cleanupNotifSub();
+    try { await authSignOut(); } catch { /* ignore */ }
     setProfile(null);
     setUnreadCount(0);
+    // Hard navigate — clears all stale component state, goes to landing
+    window.location.href = '/';
   }, []);
 
   const signInWithGoogle = useCallback(() => authGoogle(), []);
@@ -118,81 +126,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(p);
   }, []);
 
-  const forgotPassword = useCallback((email: string) => sendPasswordRecovery(email), []);
-
+  const forgotPassword = useCallback(
+    (email: string) => sendPasswordRecovery(email), []
+  );
   const resetPassword = useCallback(
     (userId: string, secret: string, password: string) =>
-      confirmPasswordRecovery(userId, secret, password),
-    []
+      confirmPasswordRecovery(userId, secret, password), []
   );
-
   const changePassword = useCallback(
-    (oldPwd: string, newPwd: string) => authChangePassword(oldPwd, newPwd),
-    []
+    (old: string, next: string) => authChangePassword(old, next), []
   );
-
   const verifyEmail = useCallback(() => sendEmailVerification(), []);
 
-  // ─── Profile actions ──────────────────────────────────────────────────────
-  const updateProfile = useCallback(
-    async (data: Partial<Profile>) => {
-      if (!profile) return;
-      const updated = await authUpdateProfile(profile.$id, data);
-      setProfile(updated);
-    },
-    [profile]
-  );
+  // ── Profile actions ───────────────────────────────────────────────────────
+  const refreshProfile = useCallback(async () => {
+    const p = await getAccountOrNull();
+    setProfile(p);
+  }, []);
 
-  const uploadAvatar = useCallback(
-    async (file: File) => {
-      if (!profile) return;
-      await authUploadAvatar(profile.$id, file);
-      // Refresh profile to get new avatarFileId
-      const refreshed = await getAccountOrNull();
-      if (refreshed) setProfile(refreshed);
-    },
-    [profile]
-  );
+  const updateProfile = useCallback(async (data: Partial<Profile>) => {
+    if (!profile) return;
+    const updated = await authUpdateProfile(profile.$id, data);
+    setProfile(updated);
+  }, [profile]);
 
-  // ─── Computed ─────────────────────────────────────────────────────────────
-  const isParticipant = profile?.role === 'participant';
-  const isJudge = profile?.role === 'judge';
-  const isOrganizer = profile?.role === 'organizer';
+  const uploadAvatar = useCallback(async (file: File) => {
+    if (!profile) return;
+    await authUploadAvatar(profile.$id, file);
+    await refreshProfile();
+  }, [profile, refreshProfile]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        profile,
-        isLoading,
-        isAuthenticated: !!profile,
-        signIn,
-        signUp,
-        signOut,
-        signInWithGoogle,
-        signInWithGithub,
-        completeOAuth,
-        forgotPassword,
-        resetPassword,
-        changePassword,
-        verifyEmail,
-        updateProfile,
-        uploadAvatar,
-        getAvatarUrl,
-        isParticipant,
-        isJudge,
-        isOrganizer,
-        unreadCount,
-        setUnreadCount,
-      }}
-    >
+    <AuthContext.Provider value={{
+      profile, isLoading,
+      isAuthenticated: !!profile,
+      signIn, signUp, signOut,
+      signInWithGoogle, signInWithGithub, completeOAuth,
+      forgotPassword, resetPassword, changePassword, verifyEmail,
+      updateProfile, uploadAvatar, getAvatarUrl, refreshProfile,
+      isParticipant: profile?.role === 'participant',
+      isJudge: profile?.role === 'judge',
+      isOrganizer: profile?.role === 'organizer',
+      unreadCount, setUnreadCount,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error('useAuth must be inside AuthProvider');
   return ctx;
 }
